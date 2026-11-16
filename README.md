@@ -16,6 +16,44 @@ The overall flow:
 
 ---
 
+## Quick start: one script
+
+`deploy-openshift.ps1` runs every step below for you. Run it and answer the prompts:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy-openshift.ps1
+```
+
+It asks for the image archive, the chart, the OpenShift API URL (if you're not logged in) and the project. It reads the image name and tag from the archive and offers them as defaults. Then it:
+
+1. installs `helm` with winget if it's missing
+2. logs in to OpenShift and creates the project if needed
+3. pushes the image with `crane` (downloaded automatically), or falls back to a temporary in-cluster `skopeo` pod
+4. runs `helm upgrade --install` with the image settings pointed at the pushed image and OpenShift-safe security settings, and waits for the pods
+5. creates an HTTPS route if the app has none, and prints the URL
+
+To run it without prompts, pass the values as parameters:
+
+```powershell
+.\deploy-openshift.ps1 -ImageArchive .\myapp.tar.gz -ChartPath .\mychart -Project myproj `
+    -Server https://api.mycluster.example.com:6443 -Token <token> -NonInteractive
+```
+
+| Parameter | Use |
+|---|---|
+| `-PushMethod Auto\|Crane\|InCluster` | How to push the image. `Auto` (default) tries crane, then the in-cluster pod. |
+| `-AppName`, `-ImageTag`, `-ReleaseName` | Override the names read from the archive. |
+| `-ValuesFile` | Extra Helm values file. |
+| `-ImageRepositoryKey`, `-ImageTagKey`, `-ImagePullPolicyKey` | Use these if the chart's image keys aren't `image.repository` / `image.tag` / `image.pullPolicy`. |
+| `-KeepChartSecurityContext` | Keep the chart's `runAsUser`/`fsGroup` settings instead of clearing them. |
+| `-ExposeRoute $false`, `-ServiceToExpose` | Skip route creation, or choose which service gets the route. |
+| `-InsecureRegistry $false` | Verify the registry's TLS certificate when pushing with crane. |
+| `-SkopeoImage` | Use an internal mirror of the skopeo image on clusters without internet access. |
+
+The rest of this guide explains the same steps done by hand.
+
+---
+
 ## Prerequisites
 
 - The `oc` CLI, logged in to your cluster
